@@ -1,0 +1,10 @@
+# Ignore unnecessary directories and files
+AppData/
+Cookies/
+Documents/
+Downloads/
+Favorites/
+OneDrive/
+Pictures/
+Videos/
+ntuser.dat*
