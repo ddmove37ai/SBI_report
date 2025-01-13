@@ -1,0 +1,266 @@
+DAX MEASURES FOR SBI REPORT-
+
+NOTE- All the measures and columns are calculated in the combined table unless specified otherwise.
+
+1. PROCESS OVERVIEW -
+#Unique Policy Count- 
+- Distinct Policy Count = DISTINCTCOUNT('clean_data combined'[Unique ID])
+
+#Contacted Atleast Once-
+- Policy Level Contacted Count = 
+CALCULATE(
+    DISTINCTCOUNT('clean_data combined'[Unique ID]),
+    FILTER(
+        'clean_data combined',
+        'clean_data combined'[SMS Status] = "DELIVERED" ||
+        'clean_data combined'[WhatsApp Status] IN {"DELIVERED", "READ"} ||
+        'clean_data combined'[Email Status] IN {"DELIVERED", "READ"}
+    )
+)
+
+#Not Contacted Even Once-
+- Policy Level Not Contacted Count = [Distinct Policy Count] - [Policy Level Contacted Count]
+
+#WA Count-
+- WA Count = COUNTROWS(FILTER('clean_data combined', NOT(ISBLANK('clean_data combined'[WhatsApp Status]))))
+
+#Email Count-
+- Email Count = COUNTROWS(FILTER('clean_data combined', NOT(ISBLANK('clean_data combined'[Email Status]))))
+
+#SMS Count-
+- SMS Count = COUNTROWS(FILTER('clean_data combined', NOT(ISBLANK('clean_data combined'[SMS Status]))))
+
+#Print Count-
+- Print Count = COUNTROWS(FILTER('clean_data combined', 'clean_data combined'[Print flag] = "Yes"))
+
+#Total of all Communications-
+- Total All Comms = [Email Count] + [SMS Count] + [WA Count] + [Print Count]
+
+2.PROCESS OVERVIEW CHARTS -
+#Contacted & Not Contacted-
+- Policy Level Contacted Count - same as 1.
+- Policy Level Not Contacted Count - same as 1.
+
+#Channel wise Communication breakup-
+- WA Count, SMS Count, Email Count, Print Count - same as 1.
+
+3.RENEWAL DUES REP -
+#Dues Representation-
+- Policy Count(for_rec_report) = DISTINCTCOUNT('clean_data combined'[Unique ID])
+- WA Count, SMS Count, Email Count, Print Count - same as 1.
+- Total(for_dues_rep) = [Email Count] + [SMS Count] + [WA Count]
+- Policy Level Contacted Count - same as 1.
+- Policy Level Not Contacted Count - same as 1.
+
+-(CALCULATED COLUMN) Premium Due Date = 
+VAR CurrentPolicyNumber = 'clean_data combined'[Unique ID]
+VAR CurrentCommsDate = 'clean_data combined'[Created Date]
+VAR PolicyDueDates = 
+    FILTER(
+        'clean_data deepak_fup', 
+        'clean_data deepak_fup'[POLICY_NUMBER] = CurrentPolicyNumber
+    )
+VAR NextDueDate = 
+    CALCULATE(
+        MIN('clean_data deepak_fup'[Premium FUP]),
+        PolicyDueDates,
+        'clean_data deepak_fup'[Premium FUP] > CurrentCommsDate
+    )
+VAR CurrentOrPriorDueDate = 
+    CALCULATE(
+        MAX('clean_data deepak_fup'[Premium FUP]),
+        PolicyDueDates,
+        'clean_data deepak_fup'[Premium FUP] <= CurrentCommsDate
+    )
+RETURN 
+    IF(
+        ISBLANK(NextDueDate),
+        CurrentOrPriorDueDate, 
+        IF(
+            CurrentCommsDate <= CurrentOrPriorDueDate,
+            CurrentOrPriorDueDate,
+            NextDueDate
+        )
+)
+
+
+4. RECONCILIATION REPORT -
+- Policy Count(for_rec_report) - same as 3.
+- Delivered(for_rec_report) = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[Email Status] IN {"Delivered", "DELIVERED"} ||
+    'clean_data combined'[SMS Status] IN {"Delivered", "DELIVERED"} ||
+    'clean_data combined'[WhatsApp Status] IN {"Delivered", "DELIVERED"}
+)
+
+- Read(for_rec_report) = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[Email Status] IN {"Read", "READ"} ||
+    'clean_data combined'[SMS Status] IN {"Read", "READ"} ||
+    'clean_data combined'[WhatsApp Status] IN {"Read", "READ"}
+)
+
+- Sent(for_rec_report) = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[Email Status] IN {"Sent", "SENT"} ||
+    'clean_data combined'[SMS Status] IN {"Sent", "SENT"} ||
+    'clean_data combined'[WhatsApp Status] IN {"Sent", "SENT"}
+)
+
+- Undelivered(for_rec_report) = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[SMS Status] IN {"Undelivered", "UNDELIVERED"} ||
+    'clean_data combined'[Email Status] IN {"Undelivered", "UNDELIVERED"} ||
+    'clean_data combined'[WhatsApp Status] IN {"Undelivered", "UNDELIVERED"}
+)
+
+#Comm Status Breakup
+- Delivered, Read, Sent, Undelivered (for_rec_report) - same as above.
+
+5. DELIVERY REPORTS -
+- WA Count, Email Count, SMS Count - same as 1.
+
+6. UNDELIVERED ANALYSIS -
+- WA Count, Email Count, SMS Count - same as 1.
+
+7. POLICY DUE NO COMM SENT -
+NOTE- This measure is calculated in the fup table
+
+- Count_Policies_Not_in_Comms = 
+COUNTROWS(
+    EXCEPT(
+        DISTINCT('clean_data deepak_fup'[POLICY_NUMBER]),
+        DISTINCT('clean_data combined'[Unique ID])
+    )
+)
+ 
+8. SMS DELIVERY STATUS & READABILITY -
+- SMS Count - same as 1.
+
+- SMS Delivered Count = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[SMS Status] IN {"Delivered", "DELIVERED"} )
+
+- SMS Delivered % = 
+DIVIDE(
+        [SMS Delivered Count],
+    [SMS Count],
+    0
+) * 100
+
+- SMS Read Count = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[SMS Status] IN {"Read", "READ"} )
+    
+- SMS Read % = 
+DIVIDE(
+    CALCULATE(
+        COUNTROWS('clean_data combined'),
+        'clean_data combined'[SMS Status] IN {"Read", "READ"}
+    ),
+    CALCULATE(
+        COUNTROWS('clean_data combined'),
+        'clean_data combined'[SMS Status] IN {"Delivered", "DELIVERED", "Read", "READ"}
+    ),
+    0
+) * 100
+
+- SMS Del + Read = [SMS Delivered Count] + [SMS Read Count]
+
+- SMS Sent Count = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[SMS Status] IN {"Sent", "SENT"} )
+
+- SMS Sent % = 
+DIVIDE(
+        [SMS Sent Count],
+    [SMS Count],
+    0
+) * 100
+
+- SMS Undelivered Count = 
+CALCULATE(
+    COUNTROWS('clean_data combined'),
+    'clean_data combined'[SMS Status] IN {"Undelivered", "UNDELIVERED"} )
+
+- SMS Undelivered % = 
+DIVIDE(
+    CALCULATE(
+        COUNTROWS('clean_data combined'),
+        'clean_data combined'[SMS Status] IN {"Undelivered", "UNDELIVERED"}
+    ),
+    CALCULATE(
+        COUNTROWS('clean_data combined'),
+        'clean_data combined'[SMS Status] IN {"Delivered", "DELIVERED", "Read", "READ", "Sent", "SENT", "Undelivered", "UNDELIVERED"}
+    ),
+    0
+) * 100
+
+9. EMAIL DELIVERY STATUS & READABILITY -
+- Replicated same measures as 8. for Email
+
+10. WHATSAPP DELIVERY STATUS & READABILITY -
+- Replicated same measures as 8. for WhatsApp
+
+11. COMMS CALENDER COMPLIANCE -
+- Total Communications = 
+CALCULATE(
+    COUNTROWS('clean_data combined')
+)
+
+- (CALCULATED COLUMN) Days Difference = 
+IF(
+    ISBLANK('clean_data combined'[Created Date]),
+    BLANK(),
+    DATEDIFF('clean_data combined'[Premium Due Date], 'clean_data combined'[Created Date], DAY)
+)
+
+EXTRASSSS -
+- DAX query to calculate Not Contacted policies list from combined table-
+ Never Contacted Policies = 
+VAR AllPolicies =
+    DISTINCT(
+        SELECTCOLUMNS(
+            FILTER(
+                'clean_data combined',
+                MONTH('clean_data combined'[Due Date]) = 11 &&
+                'clean_data combined'[Job Name/Template ID] IN {
+                    "PREMIUM_REMINDER_TEXT",
+                    "PREMIUM_REMINDER_TEXT_SHORTURL",
+                    "RCR_WA_CARD_PREMIUM_REMINDER",
+                    "RPN"
+                }
+            ),
+            "Unique ID", 'clean_data combined'[Unique ID]
+        )
+    )
+VAR ContactedPolicies =
+    DISTINCT(
+        SELECTCOLUMNS(
+            FILTER(
+                'clean_data combined',
+                (
+                    'clean_data combined'[SMS Status] = "DELIVERED" ||
+                    'clean_data combined'[WhatsApp Status] IN {"DELIVERED", "READ"} ||
+                    'clean_data combined'[Email Status] IN {"DELIVERED", "READ"}
+                ) &&
+                MONTH('clean_data combined'[Due Date]) = 11 &&
+                'clean_data combined'[Job Name/Template ID] IN {
+                    "PREMIUM_REMINDER_TEXT",
+                    "PREMIUM_REMINDER_TEXT_SHORTURL",
+                    "RCR_WA_CARD_PREMIUM_REMINDER",
+                    "RPN"
+                }
+            ),
+            "Unique ID", 'clean_data combined'[Unique ID]
+        )
+    )
+RETURN
+EXCEPT(AllPolicies, ContactedPolicies)
